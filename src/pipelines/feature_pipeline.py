@@ -1,7 +1,7 @@
 # feature_pipeline.py
 import os
 
-from src.config import env_setup
+from src.config.env_setup import setup
 
 import requests
 import pandas as pd
@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from src.features.feature_engineering import engineer_features, MODEL_FEATURES
 
 load_dotenv()
+setup()
 
 LAT      = float(os.getenv("LAT",   25.3960))
 LON      = float(os.getenv("LON",   68.3578))

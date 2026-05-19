@@ -1,21 +1,32 @@
-name: Feature Pipeline
+# .github/workflows/feature_pipeline.yml
+
+name: Hourly Feature Pipeline
+
 on:
   schedule:
-    - cron: "0 * * * *"    # every hour
-  workflow_dispatch:         # manual trigger
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
 jobs:
-  run:
+  run_feature_pipeline:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
       - name: Run feature pipeline
-        run: python src/pipelines/feature_pipeline.py
+        run: python -m src.pipelines.feature_pipeline
         env:
+          PYTHONPATH:        ${{ github.workspace }}   # ← this fixes it
           HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
           HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
           LAT:               ${{ secrets.LAT }}
