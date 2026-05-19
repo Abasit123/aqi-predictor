@@ -9,8 +9,8 @@ LAT      = float(os.getenv("LAT", 25.3960))
 LON      = float(os.getenv("LON", 68.3578))
 TIMEZONE = os.getenv("TIMEZONE", "Asia/Karachi")
 
-START = "2025-05-19"
-END   = "2026-05-18"
+START = "2025-05-16"
+END   = "2026-05-15"
 
 def fetch_historical_weather():
     print("Fetching historical weather...")
@@ -32,14 +32,14 @@ def fetch_historical_weather():
     h = r["hourly"]
     return pd.DataFrame({
         "timestamp":      h["time"],
-        "temperature":    h["temperature_2m"],
-        "humidity":       h["relative_humidity_2m"],
-        "precipitation":  h["precipitation"],
-        "pressure":       h["surface_pressure"],
-        "wind_speed":     h["wind_speed_10m"],
+        "temperature(°C)":    h["temperature_2m"],
+        "humidity(%)":       h["relative_humidity_2m"],
+        "precipitation(mm)":  h["precipitation"],
+        "pressure(hPa)":       h["surface_pressure"],
+        "wind_speed(km/h)":     h["wind_speed_10m"],
         "wind_dir":       h["wind_direction_10m"],
-        "cloud_cover":    h["cloud_cover"],
-        "boundary_layer_h": h["boundary_layer_height"],
+        "cloud_cover(%)":    h["cloud_cover"],
+        "boundary_layer_h(meters)": h["boundary_layer_height"],
     })
 
 
@@ -81,5 +81,6 @@ if __name__ == "__main__":
     df = df.sort_values("timestamp").reset_index(drop=True)
 
 # Saving locally
-    df.to_json("historical_data.json", orient="records", indent=2, date_format="iso")
-    print(f"Saved {len(df)} rows to historical_data.json")
+
+df.to_json("historical_data.json", orient="records", indent=2, date_format="iso")
+print(f"Saved {len(df)} rows to historical_data.json")

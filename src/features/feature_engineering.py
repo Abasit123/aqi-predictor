@@ -19,16 +19,13 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
 
 # From EDA, we understood, Hours and months had clear impact on aqi
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
-    
-    df["hour"]  = df["timestamp"].dt.hour
-    df["month"] = df["timestamp"].dt.month
 
     # Cyclical encoding (To make sure that the model understands the cyclic nature of the time)
 
-    df["hour_sin"]  = np.sin(2 * np.pi * df["hour"]  / 24)
-    df["hour_cos"]  = np.cos(2 * np.pi * df["hour"]  / 24)
-    df["month_sin"] = np.sin(2 * np.pi * df["month"] / 12)
-    df["month_cos"] = np.cos(2 * np.pi * df["month"] / 12)
+    df["hour_sin"]  = np.sin(2 * np.pi * df["timestamp"].dt.hour  / 24)
+    df["hour_cos"]  = np.cos(2 * np.pi * df["timestamp"].dt.hour  / 24)
+    df["month_sin"] = np.sin(2 * np.pi * df["timestamp"].dt.month / 12)
+    df["month_cos"] = np.cos(2 * np.pi * df["timestamp"].dt.month / 12)
 
     return df
 
@@ -131,9 +128,12 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     print("Adding target...")
     df = add_target(df)
 
-    # Drop rows where lags or target are NaN
-    # First 24 rows have no lag history
-    # Last 72 rows have no future target
+    """   
+     ---- WHEN PUSHING HISTORIC DATA  -----
+
+    Drop rows where lags or target are NaN
+    First 24 rows have no lag history
+    Last 72 rows have no future target
 
 
     before = len(df)
@@ -146,6 +146,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     after = len(df)
     print(f"Dropped {before - after} rows with NaN lags/target")
     print(f"Final shape: {df.shape}")
+    """
 
     return df
 
@@ -162,7 +163,7 @@ MODEL_FEATURES = [
     "temperature_c",     # was temperature(°C)
     "pressure_hpa",      # was pressure(hPa)
 
-    "aqi_lag_1h", "aqi_lag_6h",
+    "aqi","aqi_lag_1h", "aqi_lag_6h",
     "aqi_lag_12h", "aqi_lag_24h",
 
     "aqi_roll_mean_3h", "aqi_roll_mean_6h", "aqi_roll_mean_24h",

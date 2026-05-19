@@ -1,21 +1,12 @@
+# push_historical_to_hopswork.py
+
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_PATH = ROOT_DIR / "data" / "historical_data_clean.json"
 
-
-
-
 import os
-import tempfile
-
-os.environ["TMPDIR"] = "C:\\tmp"
-os.environ["TEMP"]   = "C:\\tmp"
-os.environ["TMP"]    = "C:\\tmp"
-tempfile.tempdir     = "C:\\tmp"
-os.makedirs("C:\\tmp", exist_ok=True)
-# backfill.py
-
+from src.config import env_setup
 
 import pandas as pd
 import hopsworks
@@ -55,7 +46,7 @@ def push_to_hopsworks(df: pd.DataFrame):
     fs = project.get_feature_store()
     print(f"Connected to {project.name}")
 
-    # ── Create or get feature group
+    # Create or get feature group
     fg = fs.get_or_create_feature_group(
         name="aqi_features",
         version=1,
@@ -79,7 +70,7 @@ if __name__ == "__main__":
     df_engineered = engineer_features(df_raw)
     print(f"Shape after engineering: {df_engineered.shape}")
 
-    # Keep only what model needs + targets + timestamp
+    # Keeping only what model needs + targets + timestamp
     KEEP_COLS = (
         ["timestamp"]
         + MODEL_FEATURES
