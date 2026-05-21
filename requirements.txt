@@ -1,4 +1,4 @@
-hopsworks
+hopsworks==4.7.*
 pandas
 numpy
 requests
