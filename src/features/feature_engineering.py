@@ -67,54 +67,59 @@ def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
 def add_target(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Each target = average AQI over the next 24 hour window.
+    Targets = average AQI for each calendar day ahead.
 
-    target_day1 = mean AQI over hours 1 -> 24  from now
-    target_day2 = mean AQI over hours 25 ->  48 from now
-    target_day3 = mean AQI over hours 49 -> 72 from now
+    For each row at timestamp T:
+    target_day1 = avg AQI for the next calendar day
+    target_day2 = avg AQI for 2 calendar days ahead
+    target_day3 = avg AQI for 3 calendar days ahead
     """
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["timestamp"]).dt.date
 
-    # Day 1 — average over next 24 hours
-    df["target_day1"] = (
-        df["aqi"]
-        .shift(-24)                  # Starts 24 hours from now
-        .rolling(window=24, min_periods=24) .mean() # Calculates the mean for the next 24 hours
-        .shift(-23)                    # align back to current row
+    # Compute daily averages
+    daily_avg = df.groupby("date")["aqi"].mean().reset_index()
+    daily_avg.columns = ["date", "daily_avg_aqi"]
+    daily_avg["date"] = pd.to_datetime(daily_avg["date"])
+
+    # Merge daily averages back
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.merge(daily_avg, on="date", how="left")
+
+    # Shift daily averages to get next 3 days
+    daily_avg["target_day1"] = daily_avg["daily_avg_aqi"].shift(-1)
+    daily_avg["target_day2"] = daily_avg["daily_avg_aqi"].shift(-2)
+    daily_avg["target_day3"] = daily_avg["daily_avg_aqi"].shift(-3)
+
+    # Merge targets back to hourly dataframe
+    df = df.merge(
+        daily_avg[["date", "target_day1", "target_day2", "target_day3"]],
+        on="date",
+        how="left"
     )
 
-    # Day 2 — average over hours 25–48
-    df["target_day2"] = (
-        df["aqi"]
-        .shift(-48)
-        .rolling(window=24, min_periods=24)
-        .mean()
-        .shift(-23)
-    )
-
-    # Day 3 — average over hours 49–72
-    df["target_day3"] = (
-        df["aqi"]
-        .shift(-72)
-        .rolling(window=24, min_periods=24)
-        .mean()
-        .shift(-23)
-    )
+    df = df.drop(columns=["date", "daily_avg_aqi"])
 
     return df
 
 # Master Fuction
 
-def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    
-
+def engineer_features(df: pd.DataFrame, mode: str = "training") -> pd.DataFrame:
+    """
+    mode = "training"  → used in backfill and training pipeline
+                         computes targets, drops NaN rows
+                         
+    mode = "inference" → used in live feature pipeline
+                         skips targets, keeps all rows
+                         needs current aqi to compute lag features
+    """
     df = df.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.sort_values("timestamp").reset_index(drop=True)
 
-    df = clean_column_names(df) 
+    df = clean_column_names(df)
 
     print("Adding time features...")
     df = add_time_features(df)
@@ -125,29 +130,25 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     print("Adding rolling features...")
     df = add_rolling_features(df)
 
-    print("Adding target...")
-    df = add_target(df)
+    if mode == "training":
+        # Full historical data — compute targets and clean
+        print("Adding targets...")
+        df = add_target(df)
 
-    """   
-     ---- WHEN PUSHING HISTORIC DATA  -----
+        before = len(df)
+        df = df.dropna(subset=[
+            "aqi_lag_24h",
+            "target_day1",
+            "target_day2",
+            "target_day3"
+        ])
+        print(f"Dropped {before - len(df)} rows with NaN")
 
-    Drop rows where lags or target are NaN
-    First 24 rows have no lag history
-    Last 72 rows have no future target
+    else:
+        # Live pipeline — no future data, skip targets and dropna
+        print("Inference mode — skipping targets and dropna")
 
-
-    before = len(df)
-    df = df.dropna(subset=[
-    "aqi_lag_24h",          # need full lag history
-    "target_day1",           # need full future targets
-    "target_day2",
-    "target_day3"
-     ])
-    after = len(df)
-    print(f"Dropped {before - after} rows with NaN lags/target")
     print(f"Final shape: {df.shape}")
-    """
-
     return df
 
 # FINAL LIST OF FEATURES USED BY THE MODEL
@@ -156,12 +157,12 @@ MODEL_FEATURES = [
     "pm25", "pm10", "no2", "o3",
     "pm25_lag_1h", "pm10_lag_1h",
 
-    "wind_speed_kmh",    # was wind_speed(km/h)
-    "humidity_pct",      # was humidity(%)
-    "cloud_cover_pct",   # was cloud_cover(%)
+    "wind_speed_kmh",   
+    "humidity_pct",      
+    "cloud_cover_pct",   
     "wind_dir",
-    "temperature_c",     # was temperature(°C)
-    "pressure_hpa",      # was pressure(hPa)
+    "temperature_c",     
+    "pressure_hpa",      
 
     "aqi","aqi_lag_1h", "aqi_lag_6h",
     "aqi_lag_12h", "aqi_lag_24h",

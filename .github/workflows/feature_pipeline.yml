@@ -26,9 +26,9 @@ jobs:
       - name: Run feature pipeline
         run: python -m src.pipelines.feature_pipeline
         env:
-          PYTHONPATH:        ${{ github.workspace }}   # ← this fixes it
-          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
-          LAT:               ${{ secrets.LAT }}
-          LON:               ${{ secrets.LON }}
-          TIMEZONE:          ${{ secrets.TIMEZONE }}
+          PYTHONPATH:  ${{ github.workspace }}
+          MONGO_URI:   ${{ secrets.MONGO_URI }}
+          MONGO_DB:    ${{ secrets.MONGO_DB }}
+          LAT:         ${{ secrets.LAT }}
+          LON:         ${{ secrets.LON }}
+          TIMEZONE:    ${{ secrets.TIMEZONE }}

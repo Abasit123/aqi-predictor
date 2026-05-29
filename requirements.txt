@@ -1,8 +1,6 @@
-hopsworks==4.7.*
+pymongo
 pandas
 numpy
 requests
-python-dotenv
 pytz
-pyarrow
-confluent-kafka
+python-dotenv
