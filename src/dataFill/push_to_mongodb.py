@@ -27,7 +27,11 @@ def load_clean_data():
 if __name__ == "__main__":
     # Step 1 — Load
     df_raw = load_clean_data()
-
+    print(type(df_raw))
+    print(df_raw.shape)
+    print(df_raw["aqi"].dtype)
+    print(df_raw["aqi"].isna().sum())
+    print(df_raw["aqi"].head(5))
     # Step 2 — Engineer features
     print("\nEngineering features...")
     df_engineered = engineer_features(df_raw)
@@ -37,7 +41,7 @@ if __name__ == "__main__":
     KEEP_COLS = (
         ["timestamp"]
         + MODEL_FEATURES
-        + ["target_day1", "target_day2", "target_day3"]
+        + ["target_24h", "target_48h", "target_72h"]
     )
     df_final = df_engineered[KEEP_COLS].copy()
 

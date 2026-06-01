@@ -9,8 +9,8 @@ LAT      = float(os.getenv("LAT", 25.3960))
 LON      = float(os.getenv("LON", 68.3578))
 TIMEZONE = os.getenv("TIMEZONE", "Asia/Karachi")
 
-START = "2025-05-28"
-END   = "2026-05-27"
+START = "2025-01-01"
+END   = "2026-05-29"
 
 def fetch_historical_weather():
     print("Fetching historical weather...")
