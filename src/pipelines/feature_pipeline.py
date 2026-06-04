@@ -26,47 +26,74 @@ TIMEZONE = os.getenv("TIMEZONE",    "Asia/Karachi")
 
 # Fetching current hour + forecasts from Open-Meteo
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=5, max=30),
+    reraise=True
+)
+def safe_get(url, params, name):
+    print(f"  Fetching {name}...")
+    r = requests.get(url, params=params, timeout=30)
+    r.raise_for_status()
+    if not r.text.strip():
+        raise ValueError(f"{name} returned empty response")
+    data = r.json()
+    if not data:
+        raise ValueError(f"{name} returned empty JSON")
+    return data
+
 def fetch_current_hour() -> pd.DataFrame:
     print("\nFetching current hour from Open-Meteo...")
     tz  = pytz.timezone(TIMEZONE)
     now = datetime.now(tz).replace(minute=0, second=0, microsecond=0)
     current_time_str = now.strftime("%Y-%m-%dT%H:%M")
 
-    # forecast_days=4 covers current hour + 72h ahead
-    r_weather = requests.get(
-        "https://api.open-meteo.com/v1/forecast",
-        params={
-            "latitude":   LAT,
-            "longitude":  LON,
-            "hourly": [
-                "temperature_2m",
-                "relative_humidity_2m",
-                "surface_pressure",
-                "wind_speed_10m",
-                "wind_direction_10m",
-                "cloud_cover",
-            ],
-            "wind_speed_unit": "kmh",
-            "forecast_days":   4,
-            "timezone":        TIMEZONE
-        }
-    ).json()
+    # 1. Define query parameters for weather forecast
+    weather_params = {
+        "latitude":   LAT,
+        "longitude":  LON,
+        "hourly": [
+            "temperature_2m",
+            "relative_humidity_2m",
+            "surface_pressure",
+            "wind_speed_10m",
+            "wind_direction_10m",
+            "cloud_cover",
+        ],
+        "wind_speed_unit": "kmh",
+        "forecast_days":   4,
+        "timezone":        TIMEZONE
+    }
+    
+    # CALL SAFE_GET HERE (Replaces raw requests.get)
+    r_weather = safe_get(
+        url="https://api.open-meteo.com/v1/forecast", 
+        params=weather_params, 
+        name="Open-Meteo Weather Forecast"
+    )
 
-    r_air = requests.get(
-        "https://air-quality-api.open-meteo.com/v1/air-quality",
-        params={
-            "latitude":   LAT,
-            "longitude":  LON,
-            "hourly": [
-                "pm2_5", "pm10",
-                "nitrogen_dioxide",
-                "ozone",
-                "european_aqi"
-            ],
-            "forecast_days": 1,
-            "timezone":      TIMEZONE
-        }
-    ).json()
+    # 2. Define query parameters for air quality
+    air_params = {
+        "latitude":   LAT,
+        "longitude":  LON,
+        "hourly": [
+            "pm2_5", "pm10",
+            "nitrogen_dioxide",
+            "ozone",
+            "european_aqi"
+        ],
+        "forecast_days": 1,
+        "timezone":      TIMEZONE
+    }
+    
+    # CALL SAFE_GET HERE (Replaces raw requests.get)
+    r_air = safe_get(
+        url="https://air-quality-api.open-meteo.com/v1/air-quality", 
+        params=air_params, 
+        name="Open-Meteo Air Quality API"
+    )
 
     hw    = r_weather["hourly"]
     ha    = r_air["hourly"]
@@ -123,7 +150,6 @@ def fetch_current_hour() -> pd.DataFrame:
     print(f"  temp_forecast_72h:   {df['temp_forecast_72h'].values[0]}")
     print(f"  wind_forecast_72h:   {df['wind_forecast_72h'].values[0]}")
     return df
-
 
 # Fetching recent history from MongoDB
 
@@ -238,29 +264,35 @@ if __name__ == "__main__":
     print(f"Feature Pipeline — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("-" * 40)
 
-    df_current = fetch_current_hour()
-    df_history = fetch_recent_from_mongo()
-    df_row     = build_current_row(df_history, df_current)
+    try:
+        df_current = fetch_current_hour()
+        df_history = fetch_recent_from_mongo()
+        df_row     = build_current_row(df_history, df_current)
 
-    nan_count = df_row[MODEL_FEATURES].isnull().sum().sum()
-    if nan_count > 0:
-        print(f"\n{nan_count} NaN values in features:")
-        print(df_row[MODEL_FEATURES].isnull().sum()[
-            df_row[MODEL_FEATURES].isnull().sum() > 0
-        ])
-    else:
-        KEEP_COLS = (
-            ["timestamp"]
-            + MODEL_FEATURES + ["aqi"]
-            + ["target_24h", "target_48h", "target_72h"]
-        )
-        df_final = df_row[
-            [c for c in KEEP_COLS if c in df_row.columns]
-        ].copy()
+        nan_count = df_row[MODEL_FEATURES].isnull().sum().sum()
+        if nan_count > 0:
+            print(f"\n{nan_count} NaN values in features:")
+            print(df_row[MODEL_FEATURES].isnull().sum()[
+                df_row[MODEL_FEATURES].isnull().sum() > 0
+            ])
+        else:
+            KEEP_COLS = (
+                ["timestamp"]
+                + MODEL_FEATURES + ["aqi"]
+                + ["target_24h", "target_48h", "target_72h"]
+            )
+            df_final = df_row[
+                [c for c in KEEP_COLS if c in df_row.columns]
+            ].copy()
 
-        print("\nPushing to MongoDB...")
-        save_features(df_final)
-        print("  Pushed current row")
+            print("\nPushing to MongoDB...")
+            save_features(df_final)
+            print("  Pushed current row")
 
-        fill_past_targets()
-        print("\n --- Feature Pipeline complete ---")
+            fill_past_targets()
+            print("\n --- Feature Pipeline complete ---")
+
+    except Exception as e:
+        print(f"\n*** Pipeline failed: {e}")
+        print("  Will retry next scheduled run")
+        sys.exit(0) 
