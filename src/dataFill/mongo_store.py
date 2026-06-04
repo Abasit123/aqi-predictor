@@ -116,3 +116,9 @@ def create_index():
         unique=True
     )
     print("Index created on timestamp")
+
+def load_metrics() -> list:
+    """Load model metrics — used by dashboard to find best model."""
+    client     = MongoClient(os.getenv("MONGO_URI"))
+    collection = client[os.getenv("MONGO_DB")]["model_metrics"]
+    return list(collection.find({}, {"_id": 0}))

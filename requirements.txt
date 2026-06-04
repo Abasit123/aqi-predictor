@@ -1,6 +1,12 @@
-pymongo
+hopsworks
 pandas
 numpy
 requests
-pytz
 python-dotenv
+pytz
+pymongo
+scikit-learn
+xgboost
+joblib
+shap
+matplotlibs

@@ -1,0 +1,33 @@
+# .github/workflows/training_pipeline.yml
+
+name: Daily Training Pipeline
+
+on:
+  schedule:
+    - cron: "0 10 * * *"    # 10 am UTC every day and 3 pm pakistan
+  workflow_dispatch:         # manual trigger button
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run training pipeline
+        run: python -m src.pipelines.training_pipeline
+        env:
+          PYTHONPATH:        ${{ github.workspace }}
+          MONGO_URI:         ${{ secrets.MONGO_URI }}
+          MONGO_DB:          ${{ secrets.MONGO_DB }}
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}

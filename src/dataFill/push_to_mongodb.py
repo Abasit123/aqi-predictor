@@ -32,20 +32,20 @@ if __name__ == "__main__":
     print(df_raw["aqi"].dtype)
     print(df_raw["aqi"].isna().sum())
     print(df_raw["aqi"].head(5))
-    # Step 2 — Engineer features
+    # Engineer features
     print("\nEngineering features...")
     df_engineered = engineer_features(df_raw)
     print(f"Shape after engineering: {df_engineered.shape}")
 
-    # Step 3 — Keep only needed columns
+    # Keep only needed columns
     KEEP_COLS = (
         ["timestamp"]
-        + MODEL_FEATURES
+        + MODEL_FEATURES + ["aqi"]
         + ["target_24h", "target_48h", "target_72h"]
     )
     df_final = df_engineered[KEEP_COLS].copy()
-
-    # Step 4 — Sanity check
+    
+    # Sanity check
     print(f"\nSanity check:")
     print(f"  Rows:    {len(df_final)}")
     print(f"  Columns: {len(df_final.columns)}")

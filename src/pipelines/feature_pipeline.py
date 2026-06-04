@@ -24,7 +24,7 @@ LON      = float(os.getenv("LON",   68.3578))
 TIMEZONE = os.getenv("TIMEZONE",    "Asia/Karachi")
 
 
-# ── Step 1 — Fetch current hour + forecasts from Open-Meteo ──
+# Fetching current hour + forecasts from Open-Meteo
 
 def fetch_current_hour() -> pd.DataFrame:
     print("\nFetching current hour from Open-Meteo...")
@@ -88,7 +88,7 @@ def fetch_current_hour() -> pd.DataFrame:
         return None
 
     df = pd.DataFrame([{
-        # ── Current observations ──────────────────────────────
+        # Current DATA 
         "timestamp":       times[idx],
         "temperature_c":   hw["temperature_2m"][idx],
         "humidity_pct":    hw["relative_humidity_2m"][idx],
@@ -102,14 +102,13 @@ def fetch_current_hour() -> pd.DataFrame:
         "o3":              float(ha["ozone"][idx]),
         "aqi":             ha["european_aqi"][idx],
 
-        # ── Forecast weather at +48h ──────────────────────────
-        # Mirrors shift(-48) columns computed in training mode
+        # Forecast weather at +48h
         "temp_forecast_48h":     forecast_val("temperature_2m",       48),
         "humidity_forecast_48h": forecast_val("relative_humidity_2m", 48),
         "wind_forecast_48h":     forecast_val("wind_speed_10m",       48),
         "cloud_forecast_48h":    forecast_val("cloud_cover",          48),
 
-        # ── Forecast weather at +72h ──────────────────────────
+        # Forecast weather at +72h
         "temp_forecast_72h":     forecast_val("temperature_2m",       72),
         "humidity_forecast_72h": forecast_val("relative_humidity_2m", 72),
         "wind_forecast_72h":     forecast_val("wind_speed_10m",       72),
@@ -126,7 +125,7 @@ def fetch_current_hour() -> pd.DataFrame:
     return df
 
 
-# ── Step 2 — Fetch recent history from MongoDB ───────────────
+# Fetching recent history from MongoDB
 
 def fetch_recent_from_mongo() -> pd.DataFrame:
     print("\nFetching last 72 hours from MongoDB...")
@@ -136,7 +135,7 @@ def fetch_recent_from_mongo() -> pd.DataFrame:
     df = df.dropna(subset=["aqi"])
 
     if df.empty:
-        print("  No history found — lag features will be NaN")
+        print("  No history found, lag features will be NaN")
         return df
 
     print(f"  Got {len(df)} clean rows from MongoDB")
@@ -145,7 +144,7 @@ def fetch_recent_from_mongo() -> pd.DataFrame:
     return df
 
 
-# ── Step 3 — Build current row ───────────────────────────────
+# Building current row
 
 def build_current_row(df_history: pd.DataFrame,
                       df_current: pd.DataFrame) -> pd.DataFrame:
@@ -175,87 +174,59 @@ def build_current_row(df_history: pd.DataFrame,
     return current_row
 
 
-# ── Step 4 — Fill past targets ───────────────────────────────
+# Filling past targets (When data is available)
 
 def fill_past_targets():
-    print("\nFilling past targets...")
+    print("\nFilling past targets (Hourly Rolling Windows)...")
 
-    df = load_recent(n=96)
-    if df.empty:
-        print("  Not enough data")
+    # 1. Increased 'n' because we need at least 60 future rows 
+    # to be able to compute target_72h for any past row.
+    df = load_recent(n=240) 
+    if df.empty or len(df) < 60:
+        print("  Not enough data rows to compute rolling targets (minimum 60 required)")
         return
 
-    today = pd.Timestamp.now().normalize()
-    df["date"] = pd.to_datetime(df["timestamp"]).dt.normalize()
+    # Sort chronologically to ensure rolling windows look at the true timeline
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df.sort_values("timestamp").reset_index(drop=True)
 
     # Ensure target columns exist
     for col in ["target_24h", "target_48h", "target_72h"]:
         if col not in df.columns:
             df[col] = np.nan
 
-    # Backup original targets to detect newly filled rows
+    # Backing up original targets to detect newly filled rows
     df["orig_24h"] = df["target_24h"]
     df["orig_48h"] = df["target_48h"]
     df["orig_72h"] = df["target_72h"]
 
-    # Count rows per day — guards against incomplete days
-    rows_per_day = df.groupby("date")["aqi"].count().reset_index()
-    rows_per_day.columns = ["date", "row_count"]
-
-    daily_avg = df.groupby("date")["aqi"].mean().reset_index()
-    daily_avg.columns = ["date", "daily_avg_aqi"]
-    daily_avg = daily_avg.merge(rows_per_day, on="date")
-
-    # Only complete past days with at least 12 rows
-    complete_days = daily_avg[
-        (daily_avg["date"] < today) &
-        (daily_avg["row_count"] >= 12)
-    ].copy().sort_values("date").reset_index(drop=True)
-
-    if len(complete_days) < 2:
-        print("  Not enough complete days yet")
-        return
-
-    print(f"  Complete days: {complete_days['date'].dt.date.tolist()}")
-
-    # Compute rolling targets from daily averages
-    complete_days["target_24h"] = (
-        complete_days["daily_avg_aqi"]
-        .shift(-1).rolling(window=1, min_periods=1).mean()
+    # 2. Compute forward-looking rolling means for the NEXT N rows
+    # min_periods=N guarantees a target is only created if all future rows are available
+    df["target_24h"] = (
+        df["aqi"].iloc[::-1].rolling(window=14, min_periods=14).mean().shift(1).iloc[::-1] # 14 beacuse the github actions does not run the pipeline every hour - runs every 2 or 3 hours
     )
-    complete_days["target_48h"] = (
-        complete_days["daily_avg_aqi"]
-        .shift(-2).rolling(window=1, min_periods=1).mean()
+    df["target_48h"] = (
+        df["aqi"].iloc[::-1].rolling(window=28, min_periods=28).mean().shift(1).iloc[::-1]
     )
-    complete_days["target_72h"] = (
-        complete_days["daily_avg_aqi"]
-        .shift(-3).rolling(window=1, min_periods=1).mean()
+    df["target_72h"] = (
+        df["aqi"].iloc[::-1].rolling(window=42, min_periods=42).mean().shift(1).iloc[::-1]
     )
 
-    # Drop old targets before merge to avoid _x/_y suffixes
-    df = df.drop(columns=["target_24h", "target_48h", "target_72h"])
-
-    df = df.merge(
-        complete_days[["date", "target_24h", "target_48h", "target_72h"]],
-        on="date",
-        how="left"
-    )
-
-    # Only update rows that transitioned from NaN → value
+    # 3. Only update rows that transitioned from NaN → actual value
     newly_filled = (
         (df["orig_24h"].isna() & df["target_24h"].notna()) |
         (df["orig_48h"].isna() & df["target_48h"].notna()) |
         (df["orig_72h"].isna() & df["target_72h"].notna())
     )
 
-    df_to_update = df[
-        (df["date"] < today) & newly_filled
-    ].drop(columns=["date", "orig_24h", "orig_48h", "orig_72h"])
+    # Isolate the rows ready to be pushed back to MongoDB
+    df_to_update = df[newly_filled].drop(
+        columns=["orig_24h", "orig_48h", "orig_72h"]
+    )
 
     if len(df_to_update) > 0:
         update_targets(df_to_update)
-        print(f"  Filled targets for {len(df_to_update)} rows across "
-              f"{df_to_update['timestamp'].dt.normalize().nunique()} days")
+        print(f" Filled hourly targets for {len(df_to_update)} rows")
     else:
         print("  No new targets to fill")
 
@@ -263,9 +234,9 @@ def fill_past_targets():
 # ── Main ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("=" * 45)
+    print("-" * 40)
     print(f"Feature Pipeline — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print("=" * 45)
+    print("-" * 40)
 
     df_current = fetch_current_hour()
     df_history = fetch_recent_from_mongo()
@@ -280,7 +251,7 @@ if __name__ == "__main__":
     else:
         KEEP_COLS = (
             ["timestamp"]
-            + MODEL_FEATURES
+            + MODEL_FEATURES + ["aqi"]
             + ["target_24h", "target_48h", "target_72h"]
         )
         df_final = df_row[
@@ -289,7 +260,7 @@ if __name__ == "__main__":
 
         print("\nPushing to MongoDB...")
         save_features(df_final)
-        print("  ✓ Pushed current row")
+        print("  Pushed current row")
 
         fill_past_targets()
-        print("\n✓ Pipeline complete")
+        print("\n --- Feature Pipeline complete ---")

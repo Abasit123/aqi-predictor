@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 
-# ── Step 0 — Clean column names ──────────────────────────────
+# Clean column names ──────────────────────────────
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -21,7 +21,7 @@ def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ── Step 1 — Time features ───────────────────────────────────
+# Time features ───────────────────────────────────
 
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df["hour_sin"]      = np.sin(2 * np.pi * df["timestamp"].dt.hour      / 24)
@@ -31,7 +31,7 @@ def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-# ── Step 2 — Lag features ────────────────────────────────────
+# Lag features ────────────────────────────────────
 
 def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     # AQI lags
@@ -46,13 +46,17 @@ def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     df["pm25_lag_1h"]  = df["pm25"].shift(1)
     df["pm10_lag_1h"]  = df["pm10"].shift(1)
     df["pm25_lag_24h"] = df["pm25"].shift(24)
+    df["pm25_lag_48h"] = df["pm25"].shift(48)
+    df["pm25_lag_72h"] = df["pm25"].shift(72)
     df["pm10_lag_24h"] = df["pm10"].shift(24)
+    df["pm10_lag_48h"] = df["pm10"].shift(48)
+    df["pm10_lag_72h"] = df["pm10"].shift(72)
     df["no2_lag_24h"]  = df["no2"].shift(24)
 
     return df
 
 
-# ── Step 3 — Rolling features ────────────────────────────────
+# Rolling features ────────────────────────────────
 
 def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
     # AQI rolling means
@@ -77,7 +81,7 @@ def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ── Step 4 — Forecast features (training only) ───────────────
+# Forecast features (training only) ───────────────
 
 def add_forecast_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -101,7 +105,7 @@ def add_forecast_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ── Step 5 — Targets ─────────────────────────────────────────
+# Targets ─────────────────────────────────────────
 
 def add_target(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -128,7 +132,7 @@ def add_target(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ── Master function ───────────────────────────────────────────
+# Complete feature engineering g=sunction - Master Function
 
 def engineer_features(df: pd.DataFrame, mode: str = "training") -> pd.DataFrame:
     """
@@ -179,28 +183,23 @@ def engineer_features(df: pd.DataFrame, mode: str = "training") -> pd.DataFrame:
 
 
 # ── Feature lists ─────────────────────────────────────────────
-
-IRRELEVANT_48H = {"aqi_lag_1h", "aqi_lag_6h", "aqi_change_1h"}
+#Following features are irrelevant to 48h and 72h targets
+IRRELEVANT_48H = {"aqi_lag_1h", "aqi_lag_6h", "aqi_change_1h"
+                  }
 IRRELEVANT_72H = {"aqi_lag_1h", "aqi_lag_6h", "aqi_lag_12h",
-                  "aqi_change_1h", "aqi_change_6h"}
+                  "aqi_change_1h", "aqi_change_6h"
+                  }
 
 
-# FEATURE IMPORTANCE TELLS THESE FEATURES ARE NOT USEFUL
-# Remove from MODEL_FEATURES in feature_engineering.py
-# "boundary_layer_h"   — never appears in any top 15
-# "precipitation_mm"   — never appears in any top 15
-# "cloud_cover_pct"    — never appears in any top 15
-# "wind_dir"           — never appears in any top 15
-# "no2_lag_24h"        — never appears in any top 15
-# "aqi_roll_std_24h"   — never appears in any top 15
-# "aqi_roll_std_48h"   — never appears in any top 15
 MODEL_FEATURES = [
     # Raw pollutants
     "pm25", "pm10", "no2", "o3",
 
     # Pollutant lags
     "pm25_lag_1h",  "pm10_lag_1h",
-    "pm25_lag_24h", "pm10_lag_24h", "no2_lag_24h",
+    "pm25_lag_24h", "pm25_lag_48h", "pm25_lag_72h", 
+    "pm10_lag_24h", "pm10_lag_48h", "pm10_lag_72h", 
+    "no2_lag_24h",
 
     # Pollutant rolling
     "pm25_roll_mean_24h", "pm10_roll_mean_24h",
@@ -233,6 +232,48 @@ MODEL_FEATURES = [
     "temp_forecast_72h",     "humidity_forecast_72h",
     "wind_forecast_72h",     "cloud_forecast_72h",
 ]
+
+MODEL_FEATURES = [
+    # Raw pollutants
+    "pm25", "pm10", "no2", "o3",
+
+    # Pollutant lags
+    "pm25_lag_1h",  "pm10_lag_1h",
+    "pm25_lag_24h", "pm25_lag_48h", "pm25_lag_72h", 
+    "pm10_lag_24h", "pm10_lag_48h", "pm10_lag_72h", 
+    "no2_lag_24h",
+
+    # Pollutant rolling
+    "pm25_roll_mean_24h", "pm10_roll_mean_24h",
+
+    # Raw weather
+    "temperature_c", "humidity_pct", "wind_speed_kmh",
+    "cloud_cover_pct", "wind_dir", "pressure_hpa",
+
+    # AQI
+    "aqi_lag_1h",  "aqi_lag_6h",
+    "aqi_lag_12h", "aqi_lag_24h",
+    "aqi_lag_48h", "aqi_lag_72h",
+
+    # AQI rolling
+    "aqi_roll_mean_3h",  "aqi_roll_mean_6h",
+    "aqi_roll_mean_24h", "aqi_roll_mean_48h", "aqi_roll_mean_72h",
+    "aqi_roll_std_24h",  "aqi_roll_std_48h",
+
+    # AQI change
+    "aqi_change_1h", "aqi_change_6h",
+
+    # Time
+    "hour_sin", "hour_cos",
+    "month_sin", "month_cos",
+
+    # Forecast weather
+    "temp_forecast_48h",     "humidity_forecast_48h",
+    "wind_forecast_48h",     "cloud_forecast_48h",
+    "temp_forecast_72h",     "humidity_forecast_72h",
+    "wind_forecast_72h",     "cloud_forecast_72h",
+]
+
 
 TARGET = ["target_24h", "target_48h", "target_72h"]
 
