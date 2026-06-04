@@ -345,6 +345,6 @@ if __name__ == "__main__":
         best_per_horizon[horizon] = best
         all_metrics.extend(horizon_results)
 
-    #save_metrics_to_mongo(all_metrics)
+    save_metrics_to_mongo(all_metrics)
     print_summary(all_metrics, best_per_horizon)
     print(f"\n--- Training complete---")

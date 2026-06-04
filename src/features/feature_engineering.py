@@ -209,48 +209,6 @@ MODEL_FEATURES = [
     "cloud_cover_pct", "wind_dir", "pressure_hpa",
 
     # AQI
-    "aqi",
-    "aqi_lag_1h",  "aqi_lag_6h",
-    "aqi_lag_12h", "aqi_lag_24h",
-    "aqi_lag_48h", "aqi_lag_72h",
-
-    # AQI rolling
-    "aqi_roll_mean_3h",  "aqi_roll_mean_6h",
-    "aqi_roll_mean_24h", "aqi_roll_mean_48h", "aqi_roll_mean_72h",
-    "aqi_roll_std_24h",  "aqi_roll_std_48h",
-
-    # AQI change
-    "aqi_change_1h", "aqi_change_6h",
-
-    # Time
-    "hour_sin", "hour_cos",
-    "month_sin", "month_cos",
-
-    # Forecast weather
-    "temp_forecast_48h",     "humidity_forecast_48h",
-    "wind_forecast_48h",     "cloud_forecast_48h",
-    "temp_forecast_72h",     "humidity_forecast_72h",
-    "wind_forecast_72h",     "cloud_forecast_72h",
-]
-
-MODEL_FEATURES = [
-    # Raw pollutants
-    "pm25", "pm10", "no2", "o3",
-
-    # Pollutant lags
-    "pm25_lag_1h",  "pm10_lag_1h",
-    "pm25_lag_24h", "pm25_lag_48h", "pm25_lag_72h", 
-    "pm10_lag_24h", "pm10_lag_48h", "pm10_lag_72h", 
-    "no2_lag_24h",
-
-    # Pollutant rolling
-    "pm25_roll_mean_24h", "pm10_roll_mean_24h",
-
-    # Raw weather
-    "temperature_c", "humidity_pct", "wind_speed_kmh",
-    "cloud_cover_pct", "wind_dir", "pressure_hpa",
-
-    # AQI
     "aqi_lag_1h",  "aqi_lag_6h",
     "aqi_lag_12h", "aqi_lag_24h",
     "aqi_lag_48h", "aqi_lag_72h",
