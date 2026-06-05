@@ -247,8 +247,9 @@ def load_data():
         weather_data = requests.get(weather_url, timeout=10).json()
         
         # 2. Fetch live environmental AQI indexes
-        aqi_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=us_aqi,pm2_5,pm10"
+        aqi_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&hourly=european_aqi,pm2_5,pm10&forecast_days=1&timezone=Asia/Karachi"
         aqi_data = requests.get(aqi_url, timeout=10).json()
+
         
         # Safely map external payload data straight into the active dictionary schema
         if "current" in weather_data:
@@ -256,10 +257,11 @@ def load_data():
             latest["humidity_pct"]      = float(weather_data["current"]["relative_humidity_2m"])
             latest["wind_speed_kmh"]    = float(weather_data["current"]["wind_speed_10m"])
             
-        if "current" in aqi_data:
-            latest["aqi"]               = float(aqi_data["current"]["us_aqi"])
-            latest["pm25"]              = float(aqi_data["current"]["pm2_5"])
-            latest["pm10"]              = float(aqi_data["current"]["pm10"])
+        
+        if "hourly" in aqi_data:
+            latest["aqi"]  = float(aqi_data["hourly"]["european_aqi"][0])
+            latest["pm25"] = float(aqi_data["hourly"]["pm2_5"][0])
+            latest["pm10"] = float(aqi_data["hourly"]["pm10"][0])
             
         print("✓ Real-time conditions synchronized with Open-Meteo APIs.")
         
