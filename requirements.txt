@@ -13,3 +13,4 @@ shap
 matplotlib
 tenacity
 streamlit
+plotly
