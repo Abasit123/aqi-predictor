@@ -12,3 +12,4 @@ joblib
 shap
 matplotlib
 tenacity
+streamlit
