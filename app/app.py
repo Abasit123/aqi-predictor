@@ -240,7 +240,7 @@ def load_data():
     
     # Live data extraction straight from Open-Meteo APIs for Hyderabad, Sindh
     try:
-        lat, lon = 25.3960, 68.3772
+        lat, lon = 25.3960, 68.3578
         
         # 1. Fetch live meteorological features
         weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
