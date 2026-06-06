@@ -94,9 +94,9 @@ def update_targets(df: pd.DataFrame):
         result = collection.update_one(
             {"timestamp": str(row["timestamp"])},
             {"$set": {
-                "target_day1": row["target_day1"],
-                "target_day2": row["target_day2"],
-                "target_day3": row["target_day3"],
+                "target_24h": row["target_24h"],
+                "target_48h": row["target_48h"],
+                "target_72h": row["target_72h"],
             }}
         )
         if result.modified_count > 0:
