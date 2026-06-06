@@ -14,6 +14,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import hopsworks
+import tempfile
 
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble     import RandomForestRegressor
@@ -30,8 +31,6 @@ from datetime import datetime
 from src.features.feature_engineering import get_features, TARGET
 
 load_dotenv()
-
-os.makedirs("models", exist_ok=True)
 
 TARGETS = {
     "24h": "target_24h",
@@ -91,7 +90,7 @@ def get_models(horizon: str) -> dict:
         }
 
 
-# ── Step 1 — Load data ───────────────────────────────────────
+# Loading data ───────────────────────────────────────
 
 def load_data() -> pd.DataFrame:
     print("Loading data from MongoDB...")
@@ -117,12 +116,11 @@ def load_data() -> pd.DataFrame:
     return df
 
 
-# ── Step 2 — Sanity check ────────────────────────────────────
+# Sanity check ────────────────────────────────────
 
 def sanity_check(df: pd.DataFrame) -> tuple:
     print("\nSanity check:")
     print(f"  Rows:            {len(df)}")
-    #sprint(f"  AQI mean:        {df['aqi'].mean():.1f}")
     print(f"  target_24h mean: {df['target_24h'].mean():.1f}")
     print(f"  target_48h mean: {df['target_48h'].mean():.1f}")
     print(f"  target_72h mean: {df['target_72h'].mean():.1f}")
@@ -143,7 +141,7 @@ def sanity_check(df: pd.DataFrame) -> tuple:
     return df, nan_cols
 
 
-# ── Step 3 — Split ───────────────────────────────────────────
+# 80/20 chronological Split ───────────────────────────────────────────
 
 def split(df, target_col, features):
     X   = df[features]
@@ -162,7 +160,7 @@ def split(df, target_col, features):
     return X_train, X_test, y_train, y_test
 
 
-# ── Step 4 — Train and evaluate ──────────────────────────────
+# Training and evaluation ──────────────────────────────
 
 def train_and_evaluate(model, model_name, X_train, X_test,
                        y_train, y_test) -> dict:
@@ -191,18 +189,10 @@ def train_and_evaluate(model, model_name, X_train, X_test,
     }
 
 
-# ── Step 5 — Save locally ────────────────────────────────────
+# Saving directly to Hopsworks──
 
-def save_locally(model, model_name, horizon) -> str:
-    path = f"models/{model_name}_{horizon}.pkl"
-    joblib.dump(model, path)
-    return path
-
-
-# ── Step 6 — Save to Hopsworks ───────────────────────────────
-
-def save_to_registry(project, model_path, model_name,
-                     horizon, metrics, is_best) -> tuple:
+def upload_to_hopsworks(project, model, model_name,
+                                      horizon, metrics, is_best) -> tuple:
     mr            = project.get_model_registry()
     registry_name = f"aqi_{model_name}_{horizon}"
 
@@ -221,14 +211,19 @@ def save_to_registry(project, model_path, model_name,
         },
         description=description
     )
-    model_obj.save(model_path)
+
+    # Use a NamedTemporaryFile inside a context manager. 
+    # This automatically destroys the file off the system completely as soon as the block exits.
+    with tempfile.NamedTemporaryFile(suffix=".pkl", delete=True) as tmp_file:
+        joblib.dump(model, tmp_file.name)
+        model_obj.save(tmp_file.name)
 
     label = " - Saved + marked best" if is_best else " - Saved"
     print(f"    {label}: {registry_name} v{model_obj.version}")
     return registry_name, model_obj.version
 
 
-# ── Step 7 — Save metrics to MongoDB ─────────────────────────
+#Save metrics to MongoDB ─────────────────────────
 
 def save_metrics_to_mongo(all_metrics: list):
     client     = MongoClient(os.getenv("MONGO_URI"))
@@ -242,7 +237,7 @@ def save_metrics_to_mongo(all_metrics: list):
     print(f"\n - Appended {len(all_metrics)} metric records to MongoDB")
 
 
-# ── Step 8 — Connect Hopsworks ───────────────────────────────
+#  Connect Hopsworks ───────────────────────────────
 
 def connect_hopsworks():
     print("\nConnecting to Hopsworks...")
@@ -254,7 +249,7 @@ def connect_hopsworks():
     return project
 
 
-# ── Step 9 — Summary ─────────────────────────────────────────
+# Summary ─────────────────────────────────────────
 
 def print_summary(all_metrics, best_per_horizon):
     print(f"\n{'=' * 65}")
@@ -331,13 +326,12 @@ if __name__ == "__main__":
         for result in horizon_results:
             model_name = result["model_name"]
             is_best    = model_name == best_name
-            model_path = save_locally(
-                trained_models[model_name], model_name, horizon
-            )
-            registry_name, version = save_to_registry(
-                project, model_path, model_name,
+            
+            # Streams straight to registry via short-lived OS temp file
+            registry_name, version = upload_to_hopsworks(
+                project, trained_models[model_name], model_name,
                 horizon, result, is_best
-           )
+            )
             result["registry_name"] = registry_name
             result["version"]       = version
 
@@ -347,4 +341,4 @@ if __name__ == "__main__":
 
     save_metrics_to_mongo(all_metrics)
     print_summary(all_metrics, best_per_horizon)
-    print(f"\n--- Training complete---")
+    print(f"\n--- Training complete ---")
