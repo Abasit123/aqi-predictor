@@ -425,7 +425,7 @@ def forecast_card(
     change   = pred - current
     chg_sign = "↑" if change > 0 else "↓"
     chg_col  = "#ef4444" if change > 8 else "#22c55e" if change < -8 else "#6b7a99"
-    labels   = {"24h": "NEXT 24 HOURS", "48h": "NEXT 48 HOURS", "72h": "NEXT 72 HOURS"}
+    labels   = {"24h": "AVG NEXT 24 HOURS", "48h": "AVG NEXT 48 HOURS", "72h": "AVG NEXT 72 HOURS"}
 
     # Format model name
     model_display = model_name.replace("_", " ").title() if model_name else "—"
